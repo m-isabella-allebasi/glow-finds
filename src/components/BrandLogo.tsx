@@ -11,9 +11,9 @@ export function BrandLogo({ size = 'md', className = '' }: BrandLogoProps) {
   const [imgError, setImgError] = useState(false);
 
   const sizeClass = {
-    sm: 'h-16 sm:h-20 max-w-[200px]',
-    md: 'h-24 sm:h-32 max-w-[280px] sm:max-w-[360px]',
-    lg: 'h-32 sm:h-40 max-w-[340px] sm:max-w-[420px]',
+    sm: 'h-24 sm:h-28 max-w-[280px]',
+    md: 'h-36 sm:h-48 max-w-[90vw] sm:max-w-[460px]',
+    lg: 'h-44 sm:h-56 max-w-[92vw] sm:max-w-[540px]',
   }[size];
 
   if (!imgError) {
