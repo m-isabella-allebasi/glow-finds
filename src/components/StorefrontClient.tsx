@@ -126,8 +126,8 @@ export function StorefrontClient({ initialProducts }: StorefrontClientProps) {
         <div className="max-w-6xl mx-auto px-4 pt-4 pb-3 flex flex-col items-center">
           <BrandLogo size="md" />
 
-          <p className="font-script text-2xl sm:text-3xl text-burgundy/90 mt-0.5 mb-3 text-center">
-            curadoria de achadinhos &amp; desejos
+          <p className="font-serif italic text-base sm:text-lg text-burgundy/90 mt-1 mb-3.5 text-center tracking-wide">
+            Curadoria de achadinhos &amp; desejos
           </p>
 
           {/* Barra de Busca */}
@@ -247,7 +247,7 @@ export function StorefrontClient({ initialProducts }: StorefrontClientProps) {
                       {product.category}
                     </span>
 
-                    <h2 className="font-serif text-sm sm:text-base font-semibold text-noir leading-snug line-clamp-2 mb-1.5">
+                    <h2 className="font-sans text-sm sm:text-[15px] font-semibold text-noir leading-snug line-clamp-2 mb-1.5">
                       {product.title}
                     </h2>
 
@@ -341,7 +341,7 @@ export function StorefrontClient({ initialProducts }: StorefrontClientProps) {
                 className="w-14 h-16 rounded-xl object-cover shrink-0 border border-subtle"
               />
               <div className="min-w-0">
-                <p className="font-serif text-sm font-semibold text-noir line-clamp-2">
+                <p className="font-sans text-sm font-semibold text-noir line-clamp-2">
                   {alertProduct.title}
                 </p>
                 <p className="text-xs font-semibold text-burgundy mt-1">

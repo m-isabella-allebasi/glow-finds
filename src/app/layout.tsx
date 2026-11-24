@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Playfair_Display, Meow_Script, Plus_Jakarta_Sans } from 'next/font/google';
+import { Playfair_Display, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 
 const playfair = Playfair_Display({
@@ -7,13 +7,6 @@ const playfair = Playfair_Display({
   weight: ['400', '500', '600', '700'],
   style: ['normal', 'italic'],
   variable: '--font-playfair',
-  display: 'swap',
-});
-
-const meowScript = Meow_Script({
-  subsets: ['latin'],
-  weight: ['400'],
-  variable: '--font-meow',
   display: 'swap',
 });
 
@@ -49,7 +42,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${playfair.variable} ${meowScript.variable} ${plusJakarta.variable}`}
+      className={`${playfair.variable} ${plusJakarta.variable}`}
     >
       <body className="min-h-screen bg-pearl font-sans text-noir antialiased selection:bg-blush/40 selection:text-burgundy">
         {children}
