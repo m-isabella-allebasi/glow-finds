@@ -18,13 +18,36 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://glow-finds.vercel.app'),
   title: 'Glow Finds | Curadoria & Achadinhos TikTok Shop',
   description:
     'Nossa seleção editorial dos melhores achadinhos, beleza, moda e desejos virais do TikTok Shop.',
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
+  },
   openGraph: {
     title: 'Glow Finds | Curadoria & Achadinhos',
     description: 'Os melhores achadinhos selecionados com curadoria exclusiva.',
+    url: 'https://glow-finds.vercel.app',
+    siteName: 'Glow Finds',
+    images: [
+      {
+        url: '/og-banner.png',
+        width: 1200,
+        height: 630,
+        alt: 'Glow Finds | Curadoria & Achadinhos',
+      },
+    ],
+    locale: 'pt_BR',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Glow Finds | Curadoria & Achadinhos',
+    description: 'Os melhores achadinhos selecionados com curadoria exclusiva.',
+    images: ['/og-banner.png'],
   },
 };
 
