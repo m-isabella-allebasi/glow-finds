@@ -64,6 +64,7 @@ export default function AdminPage() {
   // Form state
   const formRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const capturedHandledRef = useRef(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tiktokUrl, setTiktokUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -103,6 +104,34 @@ export default function AdminPage() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // 1.5 Receber dados capturados pelo botão de favoritos (Bookmarklet)
+  useEffect(() => {
+    if (capturedHandledRef.current || typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const capturedTitle = params.get('title');
+    const capturedPrice = params.get('price');
+    const capturedImage = params.get('image');
+    const capturedUrl = params.get('url');
+
+    if (capturedTitle || capturedPrice || capturedImage || capturedUrl) {
+      capturedHandledRef.current = true;
+
+      if (capturedTitle) {
+        const cleanTitle = capturedTitle
+          .replace(/\s*[|\-–]\s*TikTok.*$/i, '')
+          .trim();
+        setTitle(cleanTitle);
+      }
+      if (capturedPrice) setPrice(capturedPrice.trim());
+      if (capturedUrl) setTiktokUrl(capturedUrl.trim());
+      if (capturedImage) setImageUrl(capturedImage.trim());
+
+      window.history.replaceState({}, '', '/admin');
+      showToast('success', 'Dados capturados! Confira os campos e publique.');
+    }
+  }, [showToast]);
 
   // 2. Carregar Produtos e Lista de Espera
   const fetchAllData = useCallback(async () => {
@@ -218,6 +247,27 @@ export default function AdminPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+  };
+
+  // Separador automático quando colar texto compartilhado do app TikTok
+  const handleSmartLinkChange = (rawValue: string) => {
+    const urlMatch = rawValue.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch && rawValue.trim() !== urlMatch[0]) {
+      const extractedUrl = urlMatch[0];
+      const remainingText = rawValue
+        .replace(extractedUrl, '')
+        .replace(/^(confira|olha|veja|achei)[^:]*:\s*/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      setTiktokUrl(extractedUrl);
+      if (remainingText && !title.trim()) {
+        setTitle(remainingText);
+        showToast('success', 'Link e nome do produto separados automaticamente!');
+      }
+    } else {
+      setTiktokUrl(rawValue);
+    }
   };
 
   // Importar dados do link do TikTok Shop
@@ -704,10 +754,10 @@ export default function AdminPage() {
                   <div className="relative flex-1">
                     <Link2 className="w-4 h-4 text-burgundy/70 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
-                      type="url"
+                      type="text"
                       value={tiktokUrl}
-                      onChange={(e) => setTiktokUrl(e.target.value)}
-                      placeholder="https://vm.tiktok.com/..."
+                      onChange={(e) => handleSmartLinkChange(e.target.value)}
+                      placeholder="https://vt.tiktok.com/... ou cole o texto compartilhado"
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-subtle text-sm focus:outline-none focus:border-burgundy"
                     />
                   </div>
