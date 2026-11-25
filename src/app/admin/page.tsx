@@ -369,9 +369,13 @@ export default function AdminPage() {
 
       resetForm();
       await fetchAllData();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error(err);
-      showToast('error', 'Erro ao salvar produto.');
+      const detail =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'Erro ao salvar produto.';
+      showToast('error', `Erro: ${detail}`);
     } finally {
       setSavingProduct(false);
     }
