@@ -69,7 +69,7 @@ export default function LinksBioPage() {
         <header className="flex flex-col items-center text-center mb-5">
           <div className="h-16 flex items-center justify-center">
             <img
-              src="/logo.svg"
+              src="/logo2.svg"
               alt="Glow Finds"
               className="h-full w-auto max-w-[230px] object-contain"
             />
