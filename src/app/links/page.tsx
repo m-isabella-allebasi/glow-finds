@@ -12,8 +12,8 @@ export default function LinksBioPage() {
 
   // Atualize com seus links oficiais
   const SOCIAL_LINKS = {
-    instagram: 'https://instagram.com/seuusuario',
-    tiktok: 'https://tiktok.com/@seuusuario',
+    instagram: 'https://instagram.com/glowfinds.club',
+    tiktok: 'www.tiktok.com/@glow_finds_',
     vipGroup: 'https://chat.whatsapp.com/SEU_LINK_VIP',
     catalog: '/',
   };
