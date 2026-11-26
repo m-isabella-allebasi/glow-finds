@@ -3,26 +3,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Playfair_Display, Plus_Jakarta_Sans } from 'next/font/google';
+import { supabase } from '@/lib/supabase';
+import { Product } from '@/types/database';
 
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
-});
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-});
-
-interface Product {
-  id: string;
-  title: string;
-  price: string;
-  image: string;
-  url: string;
-  createdAt?: string;
+interface TrackingWindow extends Window {
+  fbq?: (...args: unknown[]) => void;
+  ttq?: {
+    track: (event: string, data?: Record<string, unknown>) => void;
+  };
 }
 
 function parsePriceToNumber(priceStr?: string): number {
@@ -42,7 +30,6 @@ export default function ProductPresellPage() {
   const [redirecting, setRedirecting] = useState(false);
   const viewTrackedRef = useRef(false);
 
-  // Atualize com o link real do seu Grupo VIP
   const VIP_GROUP_URL = 'https://chat.whatsapp.com/SEU_LINK_VIP';
 
   useEffect(() => {
@@ -50,21 +37,19 @@ export default function ProductPresellPage() {
 
     async function loadProduct() {
       try {
-        const res = await fetch('/api/products', { cache: 'no-store' });
-        if (!res.ok) throw new Error('Erro ao buscar produtos');
-        const data = await res.json();
+        const [{ data: current }, { data: others }] = await Promise.all([
+          supabase.from('products').select('*').eq('id', id).single(),
+          supabase
+            .from('products')
+            .select('*')
+            .neq('id', id)
+            .eq('in_stock', true)
+            .order('created_at', { ascending: false })
+            .limit(3),
+        ]);
 
-        const list: Product[] = Array.isArray(data) ? data : data.products || [];
-        const current = list.find((item) => String(item.id) === String(id)) || null;
-
-        setProduct(current);
-
-        if (current) {
-          const others = list
-            .filter((item) => String(item.id) !== String(id))
-            .slice(0, 3);
-          setRelated(others);
-        }
+        if (current) setProduct(current as Product);
+        if (others) setRelated(others as Product[]);
       } catch (err) {
         console.error(err);
       } finally {
@@ -75,15 +60,16 @@ export default function ProductPresellPage() {
     loadProduct();
   }, [id]);
 
-  // Dispara ViewContent assim que o produto carrega
+  // Dispara ViewContent ao abrir a presell
   useEffect(() => {
-    if (!product || viewTrackedRef.current) return;
+    if (!product || viewTrackedRef.current || typeof window === 'undefined') return;
     viewTrackedRef.current = true;
 
+    const win = window as TrackingWindow;
     const numericValue = parsePriceToNumber(product.price);
 
-    if (typeof window !== 'undefined' && (window as any).fbq) {
-      (window as any).fbq('track', 'ViewContent', {
+    if (win.fbq) {
+      win.fbq('track', 'ViewContent', {
         content_ids: [String(product.id)],
         content_name: product.title,
         content_type: 'product',
@@ -92,8 +78,8 @@ export default function ProductPresellPage() {
       });
     }
 
-    if (typeof window !== 'undefined' && (window as any).ttq) {
-      (window as any).ttq.track('ViewContent', {
+    if (win.ttq) {
+      win.ttq.track('ViewContent', {
         content_id: String(product.id),
         content_name: product.title,
         content_type: 'product',
@@ -103,49 +89,48 @@ export default function ProductPresellPage() {
     }
   }, [product]);
 
-  // Dispara InitiateCheckout no clique do botão e redireciona para o TikTok Shop
+  // Dispara InitiateCheckout no clique e redireciona para o TikTok Shop
   const handleBuyClick = () => {
     if (!product || redirecting) return;
     setRedirecting(true);
 
-    const numericValue = parsePriceToNumber(product.price);
+    if (typeof window !== 'undefined') {
+      const win = window as TrackingWindow;
+      const numericValue = parsePriceToNumber(product.price);
 
-    if (typeof window !== 'undefined' && (window as any).fbq) {
-      (window as any).fbq('track', 'InitiateCheckout', {
-        content_ids: [String(product.id)],
-        content_name: product.title,
-        content_type: 'product',
-        num_items: 1,
-        currency: 'BRL',
-        value: numericValue,
-      });
+      if (win.fbq) {
+        win.fbq('track', 'InitiateCheckout', {
+          content_ids: [String(product.id)],
+          content_name: product.title,
+          content_type: 'product',
+          num_items: 1,
+          currency: 'BRL',
+          value: numericValue,
+        });
+      }
+
+      if (win.ttq) {
+        win.ttq.track('InitiateCheckout', {
+          content_id: String(product.id),
+          content_name: product.title,
+          content_type: 'product',
+          currency: 'BRL',
+          value: numericValue,
+        });
+      }
     }
 
-    if (typeof window !== 'undefined' && (window as any).ttq) {
-      (window as any).ttq.track('InitiateCheckout', {
-        content_id: String(product.id),
-        content_name: product.title,
-        content_type: 'product',
-        currency: 'BRL',
-        value: numericValue,
-      });
-    }
-
-    // Aguarda 150ms para garantir o envio dos pixels antes da saída da página
     setTimeout(() => {
-      window.location.href = product.url;
+      window.location.href = product.tiktok_url;
     }, 150);
   };
 
   return (
-    <main
-      className={`${jakarta.className} min-h-screen bg-[#0A0A0A] text-[#F8F4EF] flex flex-col items-center px-4 py-6 relative overflow-x-hidden selection:bg-[#E8B4BC]/30`}
-    >
-      {/* Luz ambiente Burgundy + Soft Pink */}
+    <main className="font-sans min-h-screen bg-[#0A0A0A] text-[#F8F4EF] flex flex-col items-center px-4 py-6 relative overflow-x-hidden selection:bg-[#E8B4BC]/30">
       <div className="pointer-events-none fixed top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full bg-[#5C1224]/35 blur-[120px]" />
 
       <div className="w-full max-w-[460px] flex flex-col items-center z-10">
-        {/* TOPO MINIMALISTA COM LOGO */}
+        {/* TOPO COM LOGO */}
         <header className="w-full flex items-center justify-between py-2 mb-5 border-b border-[#F8F4EF]/10">
           <Link href="/" className="h-9 flex items-center">
             <img
@@ -156,12 +141,11 @@ export default function ProductPresellPage() {
           </Link>
 
           <span className="text-[10px] uppercase tracking-[0.22em] text-[#E8B4BC] bg-[#4A0E1C]/50 border border-[#E8B4BC]/25 px-3 py-1 rounded-full">
-            Curadoria Oficial ✦
+            {product?.badge_tag || 'Curadoria Oficial'} ✦
           </span>
         </header>
 
         {loading ? (
-          /* Skeleton de carregamento */
           <div className="w-full rounded-3xl bg-[#140C0E] border border-[#E8B4BC]/15 p-5 animate-pulse">
             <div className="w-full aspect-square rounded-2xl bg-[#1F1216] mb-5" />
             <div className="h-4 w-28 bg-[#1F1216] rounded mb-3" />
@@ -169,12 +153,11 @@ export default function ProductPresellPage() {
             <div className="h-12 w-full bg-[#1F1216] rounded-2xl" />
           </div>
         ) : !product ? (
-          /* Fallback caso o produto tenha saído do catálogo */
           <div className="w-full rounded-3xl bg-[#140C0E] border border-[#E8B4BC]/20 p-8 text-center my-6">
             <span className="text-xs uppercase tracking-[0.22em] text-[#E8B4BC]">
               Oferta Encerrada
             </span>
-            <h1 className={`${playfair.className} text-2xl text-[#F8F4EF] mt-2 mb-3`}>
+            <h1 className="font-serif text-2xl text-[#F8F4EF] mt-2 mb-3">
               Esse achadinho esgotou ou mudou de link
             </h1>
             <p className="text-xs text-[#F8F4EF]/65 mb-6 leading-relaxed">
@@ -189,34 +172,36 @@ export default function ProductPresellPage() {
           </div>
         ) : (
           <>
-            {/* CARD PRINCIPAL DO PRODUTO (DOBRA DE CONVERSÃO) */}
+            {/* CARD PRINCIPAL DE CONVERSÃO */}
             <article className="w-full rounded-3xl bg-[#130B0D] border border-[#E8B4BC]/20 p-4 sm:p-5 shadow-[0_14px_45px_rgba(0,0,0,0.65)]">
-              {/* Imagem do produto */}
               <div className="relative w-full aspect-square rounded-2xl bg-[#1B1013] overflow-hidden mb-5 border border-white/5">
                 <img
-                  src={product.image}
+                  src={product.image_url}
                   alt={product.title}
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-[#0A0A0A]/80 backdrop-blur-md border border-[#E8B4BC]/35 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#E8B4BC] animate-pulse" />
                   <span className="text-[10px] uppercase tracking-[0.18em] text-[#F8F4EF] font-medium">
-                    Alerta Gem ✦
+                    {product.category}
                   </span>
                 </div>
               </div>
 
-              {/* Informações do Produto */}
               <div className="px-1">
                 <span className="text-[10px] uppercase tracking-[0.22em] text-[#E8B4BC]/90 font-medium">
                   Selecionado pela curadoria Glow Finds
                 </span>
 
-                <h1
-                  className={`${playfair.className} text-xl sm:text-2xl text-[#F8F4EF] font-medium leading-snug mt-1.5`}
-                >
+                <h1 className="font-serif text-xl sm:text-2xl text-[#F8F4EF] font-medium leading-snug mt-1.5">
                   {product.title}
                 </h1>
+
+                {product.curator_note && (
+                  <p className="mt-2.5 text-xs italic text-[#F8F4EF]/80 bg-[#1C0E12] border-l-2 border-[#E8B4BC] px-3 py-2 rounded-r-xl">
+                    “{product.curator_note}”
+                  </p>
+                )}
 
                 {product.price && (
                   <div className="mt-3 flex items-baseline gap-2.5">
@@ -229,7 +214,6 @@ export default function ProductPresellPage() {
                   </div>
                 )}
 
-                {/* BOTÃO PRINCIPAL DE CONVERSÃO (INITIATE CHECKOUT) */}
                 <button
                   type="button"
                   onClick={handleBuyClick}
@@ -246,7 +230,6 @@ export default function ProductPresellPage() {
                   </div>
                 </button>
 
-                {/* Micro-prova / Segurança */}
                 <div className="mt-3.5 flex items-center justify-center gap-4 text-[11px] text-[#F8F4EF]/55">
                   <span>✦ Link oficial verificado</span>
                   <span>•</span>
@@ -255,11 +238,9 @@ export default function ProductPresellPage() {
               </div>
             </article>
 
-            {/* BLOCO EDITORIAL ANTI-BLOQUEIO (CONTEXTO PARA META & TIKTOK ADS) */}
+            {/* BLOCO EDITORIAL ANTI-BLOQUEIO */}
             <section className="w-full mt-5 rounded-2xl bg-[#120B0D]/80 border border-[#F8F4EF]/10 p-5">
-              <h2
-                className={`${playfair.className} text-base text-[#F8F4EF] font-medium mb-3`}
-              >
+              <h2 className="font-serif text-base text-[#F8F4EF] font-medium mb-3">
                 Por que entrou na curadoria <span className="text-[#E8B4BC]">✦</span>
               </h2>
               <ul className="space-y-2.5 text-xs text-[#F8F4EF]/75 leading-relaxed">
@@ -287,7 +268,7 @@ export default function ProductPresellPage() {
               </ul>
             </section>
 
-            {/* BANNER DE RETENÇÃO: GRUPO VIP ALERTA GEM */}
+            {/* BANNER GRUPO VIP */}
             <a
               href={VIP_GROUP_URL}
               target="_blank"
@@ -307,11 +288,11 @@ export default function ProductPresellPage() {
               </span>
             </a>
 
-            {/* OUTROS ACHADINHOS DA VITRINE */}
+            {/* OUTROS ACHADINHOS */}
             {related.length > 0 && (
               <section className="w-full mt-7">
                 <div className="flex items-center justify-between mb-3 px-0.5">
-                  <h3 className={`${playfair.className} text-base text-[#F8F4EF]`}>
+                  <h3 className="font-serif text-base text-[#F8F4EF]">
                     Outros Achadinhos <span className="text-[#E8B4BC]">✦</span>
                   </h3>
                   <Link
@@ -331,7 +312,7 @@ export default function ProductPresellPage() {
                     >
                       <div className="w-full aspect-square bg-[#1C1114]">
                         <img
-                          src={item.image}
+                          src={item.image_url}
                           alt={item.title}
                           className="w-full h-full object-cover"
                         />
@@ -354,7 +335,6 @@ export default function ProductPresellPage() {
           </>
         )}
 
-        {/* RODAPÉ */}
         <footer className="mt-9 pb-4 text-center text-[10px] tracking-[0.22em] uppercase text-[#F8F4EF]/35">
           Glow Finds ✦ Curadoria Independente
         </footer>
