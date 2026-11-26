@@ -28,9 +28,22 @@ export default function ProductPresellPage() {
   const [related, setRelated] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
+  const [isInstagramBrowser, setIsInstagramBrowser] = useState(false);
+  const [showIgGuide, setShowIgGuide] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const viewTrackedRef = useRef(false);
 
   const VIP_GROUP_URL = 'https://chat.whatsapp.com/SEU_LINK_VIP';
+
+  // Detecta se está rodando dentro do navegador interno do Instagram
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      const ua = navigator.userAgent || '';
+      if (/Instagram/i.test(ua)) {
+        setIsInstagramBrowser(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -89,7 +102,25 @@ export default function ProductPresellPage() {
     }
   }, [product]);
 
-  // Dispara InitiateCheckout no clique e redireciona para o TikTok Shop
+  const handleCopyAffiliateLink = async () => {
+    if (!product) return;
+    try {
+      await navigator.clipboard.writeText(product.tiktok_url);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      const input = document.createElement('input');
+      input.value = product.tiktok_url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
+
+  // Dispara InitiateCheckout e trata abertura externa / app TikTok
   const handleBuyClick = () => {
     if (!product || redirecting) return;
     setRedirecting(true);
@@ -121,6 +152,26 @@ export default function ProductPresellPage() {
     }
 
     setTimeout(() => {
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+      const isAndroid = /Android/i.test(ua);
+      const isIG = /Instagram/i.test(ua);
+
+      // No Android dentro do Instagram, força abertura no Chrome/navegador externo via Intent
+      if (isIG && isAndroid) {
+        const cleanUrl = product.tiktok_url.replace(/^https?:\/\//i, '');
+        window.location.href = `intent://${cleanUrl}#Intent;scheme=https;action=android.intent.action.VIEW;end`;
+        setRedirecting(false);
+        return;
+      }
+
+      // No iPhone dentro do Instagram, exibe o guia visual de "Abrir no navegador" antes/junto do redirecionamento
+      if (isIG) {
+        setShowIgGuide(true);
+        setRedirecting(false);
+        return;
+      }
+
+      // Em navegadores normais (Safari, Chrome, TikTok), abre direto o link (aciona o app TikTok)
       window.location.href = product.tiktok_url;
     }, 150);
   };
@@ -128,6 +179,18 @@ export default function ProductPresellPage() {
   return (
     <main className="font-sans min-h-screen bg-[#0A0A0A] text-[#F8F4EF] flex flex-col items-center px-4 py-6 relative overflow-x-hidden selection:bg-[#E8B4BC]/30">
       <div className="pointer-events-none fixed top-[-140px] left-1/2 -translate-x-1/2 w-[400px] h-[400px] rounded-full bg-[#5C1224]/35 blur-[120px]" />
+
+      {/* AVISO NO TOPO SE ESTIVER NO NAVEGADOR INTERNO DO INSTAGRAM */}
+      {isInstagramBrowser && (
+        <div className="w-full max-w-[460px] mb-4 rounded-2xl bg-[#2A0810] border border-[#E8B4BC]/45 px-4 py-3 flex items-center justify-between gap-3 z-20 shadow-lg">
+          <p className="text-[11px] text-[#F8F4EF]/90 leading-snug">
+            <strong className="text-[#E8B4BC]">Dica para abrir o app TikTok:</strong>{' '}
+            toque nos <strong className="text-[#F8F4EF]">3 pontinhos (•••)</strong> no canto superior e selecione{' '}
+            <strong className="text-[#F8F4EF]">Abrir no navegador</strong>.
+          </p>
+          <span className="text-[#E8B4BC] text-base shrink-0">↗</span>
+        </div>
+      )}
 
       <div className="w-full max-w-[460px] flex flex-col items-center z-10">
         {/* TOPO COM LOGO */}
@@ -229,6 +292,43 @@ export default function ProductPresellPage() {
                     <span className="text-[#E8B4BC] text-base">→</span>
                   </div>
                 </button>
+
+                {/* GUIA INTERATIVO QUANDO CLICAR DE DENTRO DO INSTAGRAM NO IPHONE */}
+                {showIgGuide && (
+                  <div className="mt-4 rounded-2xl bg-[#1E0A10] border border-[#E8B4BC]/50 p-4 text-left space-y-3">
+                    <p className="text-xs font-semibold text-[#E8B4BC]">
+                      Para abrir direto no seu aplicativo do TikTok:
+                    </p>
+                    <ol className="text-xs text-[#F8F4EF]/85 space-y-1.5 list-decimal list-inside">
+                      <li>
+                        Toque nos <strong>3 pontinhos (•••)</strong> no canto superior direito desta tela.
+                      </li>
+                      <li>
+                        Toque em <strong>Abrir no navegador</strong> (Safari).
+                      </li>
+                      <li>
+                        O app do TikTok abrirá automaticamente na oferta.
+                      </li>
+                    </ol>
+
+                    <div className="pt-1 flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyAffiliateLink}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-[#E8B4BC] text-[#0A0A0A] text-xs font-semibold text-center"
+                      >
+                        {copiedLink ? 'Link Copiado ✓' : 'Copiar Link para Colar no Safari'}
+                      </button>
+
+                      <a
+                        href={product.tiktok_url}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-white/10 text-[#F8F4EF] text-xs font-medium text-center"
+                      >
+                        Continuar aqui mesmo
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3.5 flex items-center justify-center gap-4 text-[11px] text-[#F8F4EF]/55">
                   <span>✦ Link oficial verificado</span>
