@@ -1011,4 +1011,321 @@ export default function AdminPage() {
                       <input
                         type="checkbox"
                         checked={isFeatured}
-                        onChange={(e) => setIsFeatured(e.target
+                        onChange={(e) => setIsFeatured(e.target.checked)}
+                        className="w-4 h-4 accent-burgundy rounded"
+                      />
+                      <span className="text-sm font-medium text-noir">
+                        Fixar no topo (Destaque)
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={savingProduct || uploadingImg}
+                      className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-burgundy hover:bg-burgundy-hover disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-sm transition-all"
+                    >
+                      {savingProduct ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Salvando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4" />
+                          <span>
+                            {editingId ? 'Salvar Alterações' : 'Publicar no Catálogo'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </section>
+
+            {/* Lista de Produtos Cadastrados */}
+            <section className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h2 className="font-serif text-xl font-semibold text-noir">
+                  Produtos Cadastrados ({products.length})
+                </h2>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={adminSearch}
+                    onChange={(e) => setAdminSearch(e.target.value)}
+                    placeholder="Filtrar produtos..."
+                    className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-subtle text-xs focus:outline-none focus:border-burgundy"
+                  />
+                </div>
+              </div>
+
+              {loadingData ? (
+                <div className="py-12 flex justify-center">
+                  <Loader2 className="w-6 h-6 text-burgundy animate-spin" />
+                </div>
+              ) : filteredAdminProducts.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-subtle p-8 text-center text-sm text-muted">
+                  Nenhum produto cadastrado ainda.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredAdminProducts.map((product) => {
+                    const waitingCount = pendingCountByProduct[product.id] || 0;
+                    return (
+                      <div
+                        key={product.id}
+                        className="bg-white rounded-2xl border border-subtle p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-card"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <img
+                            src={product.image_url}
+                            alt={product.title}
+                            className={`w-14 h-16 rounded-xl object-cover shrink-0 border border-subtle ${
+                              !product.in_stock ? 'grayscale opacity-70' : ''
+                            }`}
+                          />
+
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                              <span className="text-[10px] uppercase tracking-wider text-muted font-semibold">
+                                {product.category}
+                              </span>
+                              {product.badge_tag && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blush-soft text-burgundy font-semibold">
+                                  ✦ {product.badge_tag}
+                                </span>
+                              )}
+                              {waitingCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab('waitlist')}
+                                  className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold inline-flex items-center gap-1"
+                                >
+                                  <Bell className="w-2.5 h-2.5" />
+                                  {waitingCount} aguardando
+                                </button>
+                              )}
+                            </div>
+
+                            <h3 className="font-serif text-sm sm:text-base font-semibold text-noir truncate">
+                              {product.title}
+                            </h3>
+                            <p className="text-xs font-bold text-burgundy mt-0.5">
+                              {product.price}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Controles Rápidos */}
+                        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-subtle">
+                          {/* Botão Copiar Link Presell */}
+                          <CopyPresellButton productId={product.id} />
+
+                          {/* Toggle Em Estoque / Esgotado */}
+                          <button
+                            type="button"
+                            onClick={() => toggleStockStatus(product)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                              product.in_stock
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                : 'bg-zinc-100 text-zinc-700 border border-zinc-300 hover:bg-zinc-200'
+                            }`}
+                          >
+                            {product.in_stock ? '● Em Estoque' : '○ Esgotado'}
+                          </button>
+
+                          {/* Destacar */}
+                          <button
+                            type="button"
+                            onClick={() => toggleFeatured(product)}
+                            title={
+                              product.is_featured
+                                ? 'Remover destaque'
+                                : 'Fixar no topo'
+                            }
+                            className={`p-2 rounded-xl border transition-colors ${
+                              product.is_featured
+                                ? 'bg-blush-soft border-blush text-burgundy'
+                                : 'bg-pearl border-subtle text-muted hover:text-noir'
+                            }`}
+                          >
+                            <Star
+                              className={`w-4 h-4 ${
+                                product.is_featured ? 'fill-burgundy' : ''
+                              }`}
+                            />
+                          </button>
+
+                          {/* Editar */}
+                          <button
+                            type="button"
+                            onClick={() => startEditing(product)}
+                            title="Editar produto"
+                            className="p-2 rounded-xl bg-pearl border border-subtle text-noir hover:border-burgundy hover:text-burgundy transition-colors"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+
+                          {/* Excluir */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(product)}
+                            title="Excluir produto"
+                            className="p-2 rounded-xl bg-pearl border border-subtle text-muted hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        ) : (
+          /* ABA: LISTA DE ESPERA & DISPARO WHATSAPP */
+          <section className="space-y-6">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-burgundy">
+                ✦ Central de Reposição
+              </span>
+              <h1 className="font-serif text-2xl font-semibold text-noir">
+                Lista de Espera &amp; Avisos WhatsApp
+              </h1>
+              <p className="text-xs sm:text-sm text-muted mt-1">
+                Quando você reativar o estoque de um produto, ele sobe para o topo desta lista para disparo rápido.
+              </p>
+            </div>
+
+            {groupedWaitlist.length === 0 ? (
+              <div className="bg-white rounded-3xl border border-subtle p-10 text-center shadow-card">
+                <Bell className="w-8 h-8 text-burgundy/60 mx-auto mb-2" />
+                <p className="font-serif text-lg text-noir">
+                  Nenhuma solicitação na lista de espera ainda
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  Quando um produto estiver marcado como Esgotado, as clientes poderão deixar o WhatsApp na vitrine.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {groupedWaitlist.map((group) => {
+                  const isBackInStock = Boolean(group.product?.in_stock);
+                  const hasReadyCustomers = isBackInStock && group.pendingCount > 0;
+
+                  return (
+                    <div
+                      key={group.productId}
+                      className={`bg-white rounded-3xl border overflow-hidden shadow-card ${
+                        hasReadyCustomers
+                          ? 'border-emerald-400 ring-2 ring-emerald-500/15'
+                          : 'border-subtle'
+                      }`}
+                    >
+                      <div
+                        className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b ${
+                          hasReadyCustomers
+                            ? 'bg-emerald-50/70 border-emerald-200'
+                            : 'bg-pearl/70 border-subtle'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {group.product?.image_url && (
+                            <img
+                              src={group.product.image_url}
+                              alt={group.product.title}
+                              className="w-12 h-14 rounded-xl object-cover border border-subtle shrink-0"
+                            />
+                          )}
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                                  isBackInStock
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-zinc-200 text-zinc-700'
+                                }`}
+                              >
+                                {isBackInStock
+                                  ? '● Voltou ao Estoque!'
+                                  : '○ Ainda Esgotado'}
+                              </span>
+                              <span className="text-xs text-muted">
+                                {group.pendingCount} pendente(s) de {group.items.length}
+                              </span>
+                            </div>
+                            <h3 className="font-serif text-base font-semibold text-noir mt-1">
+                              {group.product?.title || 'Produto removido'}
+                            </h3>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="divide-y divide-subtle">
+                        {group.items.map((alert) => (
+                          <div
+                            key={alert.id}
+                            className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-noir">
+                                  {alert.customer_name || 'Cliente VIP'}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                    alert.notified
+                                      ? 'bg-zinc-100 text-zinc-500'
+                                      : 'bg-blush-soft text-burgundy'
+                                  }`}
+                                >
+                                  {alert.notified ? 'Avisado' : 'Pendente'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted mt-0.5">
+                                {alert.whatsapp} •{' '}
+                                {new Date(alert.created_at).toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleNotifyWhatsApp(alert)}
+                                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors shadow-xs"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                <span>Notificar no WhatsApp</span>
+                              </button>
+
+                              {!alert.notified && (
+                                <button
+                                  type="button"
+                                  onClick={() => markAlertNotified(alert.id)}
+                                  title="Marcar manualmente como avisado"
+                                  className="p-2 rounded-xl border border-subtle text-muted hover:text-emerald-700 hover:border-emerald-300 transition-colors"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
