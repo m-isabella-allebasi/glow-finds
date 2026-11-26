@@ -265,4 +265,750 @@ export default function AdminPage() {
       setTiktokUrl(extractedUrl);
       if (remainingText && !title.trim()) {
         setTitle(remainingText);
-        showToast('
+        showToast('success', 'Link e nome do produto separados automaticamente!');
+      }
+    } else {
+      setTiktokUrl(rawValue);
+    }
+  };
+
+  // Importar dados do link do TikTok Shop
+  const handleScrapeLink = async () => {
+    if (!tiktokUrl.trim()) {
+      showToast('error', 'Cole primeiro o link do TikTok Shop.');
+      return;
+    }
+
+    setScraping(true);
+    try {
+      const res = await fetch('/api/scrape-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: tiktokUrl.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (data.title && !title) {
+        setTitle(data.title);
+      }
+      if (data.imageUrl) {
+        setImageUrl(data.imageUrl);
+      }
+
+      showToast(data.imageUrl ? 'success' : 'error', data.message);
+    } catch {
+      showToast('error', 'Falha ao conectar com o importador. Use Ctrl+V para a foto.');
+    } finally {
+      setScraping(false);
+    }
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setTiktokUrl('');
+    setTitle('');
+    setPrice('');
+    setCategory('');
+    setBadgeTag('');
+    setCuratorNote('');
+    setImageUrl('');
+    setInStock(true);
+    setIsFeatured(false);
+  };
+
+  const startEditing = (product: Product) => {
+    setEditingId(product.id);
+    setTiktokUrl(product.tiktok_url);
+    setTitle(product.title);
+    setPrice(product.price);
+    setCategory(product.category);
+    setBadgeTag(product.badge_tag || '');
+    setCuratorNote(product.curator_note || '');
+    setImageUrl(product.image_url);
+    setInStock(product.in_stock);
+    setIsFeatured(product.is_featured);
+    setActiveTab('products');
+    formRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Salvar ou Atualizar Produto
+  const handleSaveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!title.trim() || !price.trim() || !category.trim() || !tiktokUrl.trim() || !imageUrl.trim()) {
+      showToast('error', 'Preencha foto, título, preço, categoria e link do TikTok.');
+      return;
+    }
+
+    setSavingProduct(true);
+    try {
+      const payload = {
+        title: title.trim(),
+        price: price.trim(),
+        category: category.trim(),
+        tiktok_url: tiktokUrl.trim(),
+        image_url: imageUrl.trim(),
+        badge_tag: badgeTag.trim() || null,
+        curator_note: curatorNote.trim() || null,
+        in_stock: inStock,
+        is_featured: isFeatured,
+      };
+
+      if (editingId) {
+        const { error } = await supabase
+          .from('products')
+          .update(payload)
+          .eq('id', editingId);
+
+        if (error) throw error;
+        setLastSavedProduct({ id: editingId, title: payload.title });
+        showToast('success', 'Produto atualizado na vitrine!');
+      } else {
+        const { data: inserted, error } = await supabase
+          .from('products')
+          .insert(payload)
+          .select('id, title')
+          .single();
+
+        if (error) throw error;
+        if (inserted) {
+          setLastSavedProduct({ id: inserted.id, title: inserted.title });
+        }
+        showToast('success', 'Novo achadinho publicado na vitrine!');
+      }
+
+      resetForm();
+      await fetchAllData();
+    } catch (err: unknown) {
+      console.error(err);
+      const detail =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'Erro ao salvar produto.';
+      showToast('error', `Erro: ${detail}`);
+    } finally {
+      setSavingProduct(false);
+    }
+  };
+
+  // Alternar Estoque em 1 clique
+  const toggleStockStatus = async (product: Product) => {
+    const nextStock = !product.in_stock;
+    setProducts((prev) =>
+      prev.map((p) => (p.id === product.id ? { ...p, in_stock: nextStock } : p))
+    );
+
+    const { error } = await supabase
+      .from('products')
+      .update({ in_stock: nextStock })
+      .eq('id', product.id);
+
+    if (error) {
+      showToast('error', 'Erro ao atualizar estoque.');
+      fetchAllData();
+    } else {
+      const pendingForProduct = alerts.filter(
+        (a) => a.product_id === product.id && !a.notified
+      ).length;
+
+      if (nextStock && pendingForProduct > 0) {
+        showToast(
+          'success',
+          `Estoque reativado! Há ${pendingForProduct} pessoa(s) aguardando na Lista de Espera.`
+        );
+      } else {
+        showToast(
+          'success',
+          nextStock ? 'Marcado como Em Estoque!' : 'Marcado como Esgotado.'
+        );
+      }
+      fetchAllData();
+    }
+  };
+
+  // Alternar Destaque
+  const toggleFeatured = async (product: Product) => {
+    const nextFeatured = !product.is_featured;
+    setProducts((prev) =>
+      prev.map((p) => (p.id === product.id ? { ...p, is_featured: nextFeatured } : p))
+    );
+
+    const { error } = await supabase
+      .from('products')
+      .update({ is_featured: nextFeatured })
+      .eq('id', product.id);
+
+    if (error) {
+      showToast('error', 'Erro ao destacar produto.');
+      fetchAllData();
+    }
+  };
+
+  // Excluir Produto
+  const handleDeleteProduct = async (product: Product) => {
+    const confirmed = window.confirm(
+      `Tem certeza que deseja excluir "${product.title}"?`
+    );
+    if (!confirmed) return;
+
+    const { error } = await supabase.from('products').delete().eq('id', product.id);
+    if (error) {
+      showToast('error', 'Erro ao excluir produto.');
+    } else {
+      showToast('success', 'Produto removido.');
+      if (editingId === product.id) resetForm();
+      if (lastSavedProduct?.id === product.id) setLastSavedProduct(null);
+      fetchAllData();
+    }
+  };
+
+  // Marcar alerta como avisado no Supabase
+  const markAlertNotified = async (alertId: string) => {
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, notified: true } : a))
+    );
+
+    const { error } = await supabase
+      .from('stock_alerts')
+      .update({ notified: true })
+      .eq('id', alertId);
+
+    if (error) {
+      showToast('error', 'Erro ao atualizar status do aviso.');
+      fetchAllData();
+    }
+  };
+
+  // Disparar WhatsApp + marcar como avisado
+  const handleNotifyWhatsApp = async (alert: StockAlert) => {
+    const productTitle = alert.products?.title || 'produto desejado';
+    const productLink = alert.products?.tiktok_url || '';
+    const greetingName = alert.customer_name?.trim()
+      ? `Oi ${alert.customer_name.trim()}!`
+      : 'Oi!';
+
+    const message = `${greetingName} ✨ Passando pra avisar que o *${productTitle}* que você pediu na Glow Finds acabou de voltar pro estoque! Garante o seu antes que acabe de novo: ${productLink}`;
+
+    const cleanDigits = alert.whatsapp.replace(/\D/g, '');
+    const phoneWithCountry = cleanDigits.startsWith('55')
+      ? cleanDigits
+      : `55${cleanDigits}`;
+
+    const waUrl = `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(
+      message
+    )}`;
+
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+
+    if (!alert.notified) {
+      await markAlertNotified(alert.id);
+    }
+  };
+
+  // Contagem de pendentes por produto
+  const pendingCountByProduct = useMemo(() => {
+    const map: Record<string, number> = {};
+    alerts.forEach((a) => {
+      if (!a.notified) {
+        map[a.product_id] = (map[a.product_id] || 0) + 1;
+      }
+    });
+    return map;
+  }, [alerts]);
+
+  // Agrupamento da Lista de Espera por produto
+  const groupedWaitlist = useMemo(() => {
+    const groupsMap = new Map<
+      string,
+      {
+        product: StockAlert['products'];
+        productId: string;
+        items: StockAlert[];
+        pendingCount: number;
+      }
+    >();
+
+    alerts.forEach((alert) => {
+      const existing = groupsMap.get(alert.product_id);
+      if (existing) {
+        existing.items.push(alert);
+        if (!alert.notified) existing.pendingCount += 1;
+      } else {
+        groupsMap.set(alert.product_id, {
+          product: alert.products,
+          productId: alert.product_id,
+          items: [alert],
+          pendingCount: alert.notified ? 0 : 1,
+        });
+      }
+    });
+
+    return Array.from(groupsMap.values()).sort((a, b) => {
+      const aReady = (a.product?.in_stock ? 1 : 0) * (a.pendingCount > 0 ? 10 : 1);
+      const bReady = (b.product?.in_stock ? 1 : 0) * (b.pendingCount > 0 ? 10 : 1);
+      if (bReady !== aReady) return bReady - aReady;
+      return b.pendingCount - a.pendingCount;
+    });
+  }, [alerts]);
+
+  const readyToNotifyTotal = useMemo(() => {
+    return alerts.filter((a) => !a.notified && a.products?.in_stock).length;
+  }, [alerts]);
+
+  const filteredAdminProducts = useMemo(() => {
+    const q = adminSearch.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q)
+    );
+  }, [products, adminSearch]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-pearl flex items-center justify-center">
+        <Loader2 className="w-7 h-7 text-burgundy animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-pearl flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-white rounded-3xl border border-subtle p-8 shadow-editorial">
+          <div className="flex flex-col items-center mb-6">
+            <BrandLogo size="md" />
+            <span className="text-[11px] uppercase tracking-[0.22em] text-muted font-semibold mt-2">
+              Acesso Administrativo
+            </span>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-noir mb-1.5">
+                E-mail
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seuemail@glowfinds.com"
+                className="w-full px-4 py-3 rounded-xl border border-subtle bg-pearl/50 text-sm focus:outline-none focus:bg-white focus:border-burgundy"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-noir mb-1.5">
+                Senha
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-xl border border-subtle bg-pearl/50 text-sm focus:outline-none focus:bg-white focus:border-burgundy"
+              />
+            </div>
+
+            {loginError && (
+              <p className="text-xs text-red-600 font-medium">{loginError}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loggingIn}
+              className="w-full py-3.5 rounded-xl bg-burgundy hover:bg-burgundy-hover text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {loggingIn ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                'Entrar no Painel'
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <Link
+              href="/"
+              className="text-xs text-muted hover:text-burgundy underline underline-offset-4"
+            >
+              ← Voltar para a vitrine pública
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-pearl text-noir pb-16">
+      {toast && (
+        <div
+          className={`fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 rounded-2xl shadow-xl border text-xs sm:text-sm font-medium flex items-center gap-2.5 ${
+            toast.type === 'success'
+              ? 'bg-noir text-white border-noir'
+              : 'bg-red-600 text-white border-red-700'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 shrink-0 text-blush" />
+          <span>{toast.text}</span>
+        </div>
+      )}
+
+      {/* Header Admin */}
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-subtle">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <BrandLogo size="sm" />
+            <span className="hidden sm:inline-block text-[10px] uppercase tracking-[0.2em] bg-blush-soft text-burgundy font-bold px-2.5 py-1 rounded-full border border-blush/50">
+              Admin
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/links"
+              target="_blank"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-subtle text-xs font-medium text-noir hover:border-burgundy hover:text-burgundy transition-colors"
+            >
+              <span>Link in Bio</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+
+            <Link
+              href="/"
+              target="_blank"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-subtle text-xs font-medium text-noir hover:border-burgundy hover:text-burgundy transition-colors"
+            >
+              <span>Ver Vitrine</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Sair"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-pearl hover:bg-red-50 text-muted hover:text-red-600 border border-subtle text-xs font-medium transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sair</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Navegação por Abas */}
+        <div className="max-w-5xl mx-auto px-4 flex gap-2 pb-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab('products')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all ${
+              activeTab === 'products'
+                ? 'bg-burgundy text-white shadow-sm'
+                : 'bg-pearl text-muted hover:text-noir border border-subtle'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Catálogo ({products.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('waitlist')}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold transition-all ${
+              activeTab === 'waitlist'
+                ? 'bg-burgundy text-white shadow-sm'
+                : 'bg-pearl text-muted hover:text-noir border border-subtle'
+            }`}
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span>Lista de Espera</span>
+            {readyToNotifyTotal > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">
+                {readyToNotifyTotal} prontos
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 pt-6">
+        {activeTab === 'products' ? (
+          <div className="space-y-8">
+            {/* Banner instantâneo logo após publicar/atualizar */}
+            {lastSavedProduct && (
+              <div className="bg-noir text-white rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                <div className="min-w-0">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-blush font-bold block">
+                    ✦ Pronto para Anunciar
+                  </span>
+                  <p className="text-xs sm:text-sm text-white/90 truncate mt-0.5">
+                    {lastSavedProduct.title}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <CopyPresellButton productId={lastSavedProduct.id} />
+                  <button
+                    type="button"
+                    onClick={() => setLastSavedProduct(null)}
+                    aria-label="Fechar aviso"
+                    className="p-2 rounded-xl text-white/60 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Formulário de Cadastro / Edição */}
+            <section
+              ref={formRef}
+              className="bg-white rounded-3xl border border-subtle p-5 sm:p-7 shadow-card"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-burgundy">
+                    ✦ Curadoria Glow Finds
+                  </span>
+                  <h1 className="font-serif text-xl sm:text-2xl font-semibold text-noir">
+                    {editingId ? 'Editar Produto' : 'Adicionar Novo Achadinho'}
+                  </h1>
+                </div>
+
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="inline-flex items-center gap-1 text-xs text-muted hover:text-noir px-3 py-1.5 rounded-full border border-subtle"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Cancelar edição</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Passo 1: Link do TikTok Shop + Importação */}
+              <div className="p-4 rounded-2xl bg-blush-soft/70 border border-blush/50 mb-6">
+                <label className="block text-xs font-bold uppercase tracking-wider text-burgundy mb-2">
+                  1. Cole o link de afiliada do TikTok Shop
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <Link2 className="w-4 h-4 text-burgundy/70 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={tiktokUrl}
+                      onChange={(e) => handleSmartLinkChange(e.target.value)}
+                      placeholder="https://vt.tiktok.com/... ou cole o texto compartilhado"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-subtle text-sm focus:outline-none focus:border-burgundy"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleScrapeLink}
+                    disabled={scraping}
+                    className="px-4 py-2.5 rounded-xl bg-burgundy hover:bg-burgundy-hover disabled:opacity-60 text-white text-xs font-semibold uppercase tracking-wider inline-flex items-center justify-center gap-2 shrink-0 transition-colors"
+                  >
+                    {scraping ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Puxando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Puxar Dados</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveProduct} className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                {/* Coluna da Imagem (Upload + Ctrl+V) */}
+                <div className="md:col-span-4">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-noir mb-2">
+                    Foto do Produto *
+                  </label>
+
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) uploadImageFile(file);
+                    }}
+                    className="relative aspect-[4/5] w-full rounded-2xl border-2 border-dashed border-burgundy/35 hover:border-burgundy bg-pearl/70 flex flex-col items-center justify-center p-4 text-center cursor-pointer overflow-hidden transition-all group"
+                  >
+                    {uploadingImg ? (
+                      <div className="flex flex-col items-center gap-2 text-burgundy">
+                        <Loader2 className="w-7 h-7 animate-spin" />
+                        <span className="text-xs font-medium">Enviando foto...</span>
+                      </div>
+                    ) : imageUrl ? (
+                      <>
+                        <img
+                          src={imageUrl}
+                          alt="Preview"
+                          className="w-full h-full object-cover absolute inset-0"
+                        />
+                        <div className="absolute inset-0 bg-noir/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white p-3">
+                          <Upload className="w-6 h-6 mb-1" />
+                          <span className="text-xs font-medium">
+                            Clique ou dê Ctrl+V para trocar
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2 text-muted">
+                        <div className="w-11 h-11 rounded-full bg-white border border-subtle flex items-center justify-center mx-auto text-burgundy shadow-xs">
+                          <ClipboardPaste className="w-5 h-5" />
+                        </div>
+                        <p className="text-xs font-semibold text-noir">
+                          Cole um print com <kbd className="px-1.5 py-0.5 bg-white border border-subtle rounded text-[11px]">Ctrl+V</kbd>
+                        </p>
+                        <p className="text-[11px] leading-relaxed">
+                          ou clique aqui para selecionar uma foto do celular/PC
+                        </p>
+                      </div>
+                    )}
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadImageFile(file);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Coluna dos Campos */}
+                <div className="md:col-span-8 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-noir mb-1.5">
+                      Nome do Produto *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Ex: Lip Oil Hidratante Glow Berry"
+                      className="w-full px-4 py-2.5 rounded-xl border border-subtle bg-pearl/40 text-sm focus:outline-none focus:bg-white focus:border-burgundy"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-noir mb-1.5">
+                        Preço *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        placeholder="Ex: R$ 49,90"
+                        className="w-full px-4 py-2.5 rounded-xl border border-subtle bg-pearl/40 text-sm focus:outline-none focus:bg-white focus:border-burgundy"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-noir mb-1.5">
+                        Categoria *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        placeholder="Ex: Beleza & Make"
+                        className="w-full px-4 py-2.5 rounded-xl border border-subtle bg-pearl/40 text-sm focus:outline-none focus:bg-white focus:border-burgundy"
+                      />
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {CATEGORY_SUGGESTIONS.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setCategory(cat)}
+                            className="text-[11px] px-2.5 py-0.5 rounded-full bg-pearl hover:bg-blush-soft text-muted hover:text-burgundy border border-subtle transition-colors"
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-noir mb-1.5">
+                      Selo de Destaque <span className="text-muted font-normal">(opcional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={badgeTag}
+                      onChange={(e) => setBadgeTag(e.target.value)}
+                      placeholder="Ex: Alerta Gem"
+                      className="w-full px-4 py-2.5 rounded-xl border border-subtle bg-pearl/40 text-sm focus:outline-none focus:bg-white focus:border-burgundy"
+                    />
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {BADGE_SUGGESTIONS.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setBadgeTag(tag)}
+                          className="text-[11px] px-2.5 py-0.5 rounded-full bg-blush-soft text-burgundy border border-blush/50 hover:bg-burgundy hover:text-white transition-colors"
+                        >
+                          ✦ {tag}
+                        </button>
+                      ))}
+                      {badgeTag && (
+                        <button
+                          type="button"
+                          onClick={() => setBadgeTag('')}
+                          className="text-[11px] px-2.5 py-0.5 rounded-full bg-pearl text-muted border border-subtle"
+                        >
+                          Limpar selo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-noir mb-1.5">
+                      Comentário da Curadoria <span className="text-muted font-normal">(opcional)</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={curatorNote}
+                      onChange={(e) => setCuratorNote(e.target.value)}
+                      placeholder="Ex: Testei e dura o dia inteiro sem deixar pegajoso!"
+                      className="w-full px-4 py-2.5 rounded-xl border border-subtle bg-pearl/40 text-sm focus:outline-none focus:bg-white focus:border-burgundy"
+                    />
+                  </div>
+
+                  {/* Switches */}
+                  <div className="flex flex-wrap items-center gap-6 pt-1">
+                    <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={inStock}
+                        onChange={(e) => setInStock(e.target.checked)}
+                        className="w-4 h-4 accent-burgundy rounded"
+                      />
+                      <span className="text-sm font-medium text-noir">Em Estoque</span>
+                    </label>
+
+                    <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isFeatured}
+                        onChange={(e) => setIsFeatured(e.target
