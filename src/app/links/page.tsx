@@ -2,34 +2,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Playfair_Display, Plus_Jakarta_Sans } from 'next/font/google';
-
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
-});
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-});
-
-interface Product {
-  id: string;
-  title: string;
-  price: string;
-  image: string;
-  url: string;
-  createdAt?: string;
-}
+import { supabase } from '@/lib/supabase';
+import { Product } from '@/types/database';
 
 export default function LinksBioPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  // Atualize com os links oficiais da Glow Finds
+  // Atualize com seus links oficiais
   const SOCIAL_LINKS = {
     instagram: 'https://instagram.com/seuusuario',
     tiktok: 'https://tiktok.com/@seuusuario',
@@ -40,23 +21,24 @@ export default function LinksBioPage() {
   useEffect(() => {
     async function loadLatestProducts() {
       try {
-        // Mesma rota que alimenta o seu catálogo principal
-        const res = await fetch('/api/products', { cache: 'no-store' });
-        if (!res.ok) throw new Error('Falha ao carregar achadinhos');
-        const data = await res.json();
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(12);
 
-        const list: Product[] = Array.isArray(data) ? data : data.products || [];
+        if (error) {
+          console.error('Erro Supabase /links:', error);
+          return;
+        }
 
-        const latest = [...list]
-          .sort((a, b) => {
-            if (a.createdAt && b.createdAt) {
-              return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-            }
-            return 0;
-          })
-          .slice(0, 8);
-
-        setProducts(latest);
+        if (data) {
+          // Mantém todos os disponíveis (ignora apenas os marcados como false)
+          const available = (data as Product[])
+            .filter((item) => item.in_stock !== false)
+            .slice(0, 8);
+          setProducts(available);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -77,10 +59,8 @@ export default function LinksBioPage() {
   };
 
   return (
-    <main
-      className={`${jakarta.className} min-h-screen bg-[#0A0A0A] text-[#F8F4EF] flex flex-col items-center px-5 py-11 relative overflow-x-hidden selection:bg-[#E8B4BC]/30`}
-    >
-      {/* Luz ambiente Burgundy + Soft Pink no topo */}
+    <main className="font-sans min-h-screen bg-[#0A0A0A] text-[#F8F4EF] flex flex-col items-center px-5 py-11 relative overflow-x-hidden selection:bg-[#E8B4BC]/30">
+      {/* Luz ambiente Burgundy + Soft Pink */}
       <div className="pointer-events-none fixed top-[-140px] left-1/2 -translate-x-1/2 w-[420px] h-[420px] rounded-full bg-[#5C1224]/35 blur-[120px]" />
       <div className="pointer-events-none fixed top-[40px] left-1/2 -translate-x-1/2 w-[240px] h-[240px] rounded-full bg-[#E8B4BC]/10 blur-[90px]" />
 
@@ -89,13 +69,13 @@ export default function LinksBioPage() {
         <header className="flex flex-col items-center text-center mb-5">
           <div className="h-16 flex items-center justify-center">
             <img
-              src="/logo2.svg"
+              src="/logo.svg"
               alt="Glow Finds"
               className="h-full w-auto max-w-[230px] object-contain"
             />
           </div>
           <p className="text-xs text-[#F8F4EF]/70 mt-3 max-w-[270px] leading-relaxed">
-            Curadoria de beleza, moda & achados virais selecionados ✦
+            Curadoria de beleza, moda &amp; achados virais selecionados ✦
           </p>
         </header>
 
@@ -136,7 +116,6 @@ export default function LinksBioPage() {
 
         {/* 3. BOTÕES PRINCIPAIS (GRUPO VIP & CATÁLOGO) */}
         <div className="w-full flex flex-col gap-3.5 mb-9">
-          {/* Botão 1: Grupo VIP (Destaque Burgundy + Rose + Pearl) */}
           <a
             href={SOCIAL_LINKS.vipGroup}
             target="_blank"
@@ -148,9 +127,7 @@ export default function LinksBioPage() {
                 <span className="text-[10px] uppercase tracking-[0.22em] text-[#E8B4BC] font-semibold">
                   Alerta Gem ✦ Acesso VIP
                 </span>
-                <span
-                  className={`${playfair.className} text-base font-medium text-[#F8F4EF] mt-0.5`}
-                >
+                <span className="font-serif text-base font-medium text-[#F8F4EF] mt-0.5">
                   Entrar no Grupo VIP de Ofertas
                 </span>
               </div>
@@ -160,7 +137,6 @@ export default function LinksBioPage() {
             </div>
           </a>
 
-          {/* Botão 2: Catálogo Oficial (Preto & Pérola) */}
           <Link
             href={SOCIAL_LINKS.catalog}
             className="group w-full rounded-2xl bg-[#121011] border border-[#F8F4EF]/15 hover:border-[#E8B4BC]/60 px-5 py-4 flex items-center justify-between hover:scale-[1.015] transition-all duration-300"
@@ -169,9 +145,7 @@ export default function LinksBioPage() {
               <span className="text-[10px] uppercase tracking-[0.22em] text-[#F8F4EF]/55">
                 Vitrine Oficial
               </span>
-              <span
-                className={`${playfair.className} text-base font-medium text-[#F8F4EF] mt-0.5`}
-              >
+              <span className="font-serif text-base font-medium text-[#F8F4EF] mt-0.5">
                 Acessar Catálogo Completo
               </span>
             </div>
@@ -188,7 +162,7 @@ export default function LinksBioPage() {
               <span className="text-[10px] uppercase tracking-[0.24em] text-[#E8B4BC] block">
                 Curadoria Recente
               </span>
-              <h2 className={`${playfair.className} text-lg text-[#F8F4EF] font-medium`}>
+              <h2 className="font-serif text-lg text-[#F8F4EF] font-medium">
                 Últimos Achadinhos <span className="text-[#E8B4BC]">✦</span>
               </h2>
             </div>
@@ -234,17 +208,15 @@ export default function LinksBioPage() {
               className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {products.map((item) => (
-                <a
+                <Link
                   key={item.id}
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={`/produto/${item.id}`}
                   className="snap-start shrink-0 w-[168px] rounded-2xl bg-[#130C0E] border border-[#F8F4EF]/10 hover:border-[#E8B4BC]/65 overflow-hidden flex flex-col justify-between group transition-all duration-300"
                 >
                   <div>
                     <div className="relative w-full aspect-square bg-[#1C1114] overflow-hidden">
                       <img
-                        src={item.image}
+                        src={item.image_url}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
@@ -270,13 +242,12 @@ export default function LinksBioPage() {
                       Ver achadinho
                     </span>
                   </div>
-                </a>
+                </Link>
               ))}
             </div>
           )}
         </section>
 
-        {/* Rodapé discreto */}
         <footer className="mt-8 text-[10px] tracking-[0.24em] uppercase text-[#F8F4EF]/35">
           Glow Finds ✦ Curadoria Oficial
         </footer>
