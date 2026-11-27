@@ -3,6 +3,7 @@ import { StorefrontClient } from '@/components/StorefrontClient';
 import { Product } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 async function getProducts(): Promise<Product[]> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
